@@ -1,0 +1,6 @@
+# Websites allowed to use this card reader helper, one per line.
+# localhost:5173 (your laptop) is always allowed.
+# When the system is online, add its address below WITHOUT the # in front, e.g.
+#   https://mytrack.carsu.edu.ph
+# then close and open start-reader.bat again.
+
