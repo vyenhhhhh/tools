@@ -106,6 +106,7 @@ class ReaderThread(threading.Thread):
         super().__init__(daemon=True)
         self.emit = emit                     # emit(dict) → sent to every connected page
         self.jobs = queue.Queue()            # write jobs from the page
+        self.wake = threading.Event()        # set when a job arrives: the loop runs at once instead of waiting
         self.conn = None                     # connection to the card on the reader now
         self.card = None
         self.uid = None
@@ -120,7 +121,9 @@ class ReaderThread(threading.Thread):
                 log("reader error:", e)
                 self.drop_card()
                 time.sleep(1)
-            time.sleep(POLL_SECONDS)
+            # wait for the next check, but wake up at once when the page sends a write (saves up to 0.15 s per tap)
+            self.wake.wait(POLL_SECONDS)
+            self.wake.clear()
 
     def pick_reader(self):
         rs = list_readers()
@@ -362,8 +365,10 @@ async def handle(hub, r, w):
                 continue
             if msg.get("type") == "write" and isinstance(msg.get("payload"), str):
                 hub.reader.jobs.put(msg)
+                hub.reader.wake.set()
             elif msg.get("type") == "beep":
                 hub.reader.jobs.put({"type": "beep", "kind": "ok" if msg.get("kind") == "ok" else "error"})
+                hub.reader.wake.set()
     except (asyncio.IncompleteReadError, ConnectionError):
         pass
     finally:
